@@ -1,7 +1,7 @@
-qnorm_custom <- function(p) {
-  return(qnorm(p))
-}
+library(shiny)
+library(DT)
 
+# --- Sample Size Calculation Function ---
 twoSurvSampleSizeNI <- function(accrualTime, followTime, alloc, h1, h2, alpha, beta, margin) {
   totalTime <- accrualTime + followTime
   hr1 <- h2 / h1
@@ -10,8 +10,8 @@ twoSurvSampleSizeNI <- function(accrualTime, followTime, alloc, h1, h2, alpha, b
   p2 <- alloc / (1 + alloc)
   p1 <- 1 - p2
   
-  za <- qnorm_custom(1 - alpha)
-  zb <- qnorm_custom(1 - beta)
+  za <- qnorm(1 - alpha)
+  zb <- qnorm(1 - beta)
   
   nk <- 5000
   w <- totalTime / nk
@@ -52,30 +52,70 @@ twoSurvSampleSizeNI <- function(accrualTime, followTime, alloc, h1, h2, alpha, b
   sample_std <- ceiling(n * p1)
   sample_test <- ceiling(sample_std * alloc)
   
-  list(
-    total_n = sample_std + sample_test,
-    standard_group_n = sample_std,
-    test_group_n = sample_test,
-    expected_events_std = round(n * p1 * (1 + d1), 1),
-    expected_events_test = round(n * p2 * (1 + d2), 1),
-    total_expected_events = round(n * p1 * (1 + d1), 1)+round(n * p2 * (1 + d2), 1)
+  data.frame(
+    Metric = c(
+      "Total Sample Size",
+      "Standard Group Sample Size",
+      "Test Group Sample Size",
+      "Expected Events (Standard Group)",
+      "Expected Events (Test Group)",
+      "Total Expected Events"
+    ),
+    Value = c(
+      sample_std + sample_test,
+      sample_std,
+      sample_test,
+      round(n * p1 * (1 + d1), 1),
+      round(n * p2 * (1 + d2), 1),
+      round(n * p1 * (1 + d1) + n * p2 * (1 + d2), 1)
+    )
   )
 }
 
-syear <-16
-yrsurv1 <- 0.5
-yrsurv2 <- 0.3
-alloc <- 2
-accuraltime <- 24
-followtime <-24
-margin <- 1.3
-alpha <- 0.025
-power <- 0.6
+# --- Shiny App ---
+ui <- fluidPage(
+  titlePanel("Sample Size for Log-rank Non-Inferiority Test"),
+  sidebarLayout(
+    sidebarPanel(
+      numericInput("syear", "Survival Time (year):", value = 16),
+      numericInput("yrsurv1", "Survival Probability (Standard Group):", value = 0.5, min = 0.01, max = 0.99),
+      numericInput("yrsurv2", "Survival Probability (Test Group):", value = 0.3, min = 0.01, max = 0.99),
+      numericInput("alloc", "Allocation Ratio (Test / Standard):", value = 2),
+      numericInput("accrual", "Accrual Time (months):", value = 24),
+      numericInput("follow", "Follow-up Time (months):", value = 24),
+      numericInput("alpha", "One-sided Alpha:", value = 0.025),
+      numericInput("power", "Power (1 - Beta):", value = 0.6, min = 0.01, max = 1),
+      numericInput("margin", "Non-inferiority Margin (HR):", value = 1.3),
+      actionButton("calc", "Calculate")
+    ),
+    mainPanel(
+      DTOutput("result_table"),
+      tags$hr(),
+      tags$div("Reference: Jung SH, Chow SC. On sample size calculation for comparing survival curves under general hypothesis testing. Journal of Biopharmaceutical Statistics 2012; 22(3):485–495.")
+    )
+  )
+)
 
-beta <- 1-power
-h1 <- -log(yrsurv1) / syear
-h2 <- -log(yrsurv2) / syear
+server <- function(input, output) {
+  observeEvent(input$calc, {
+    h1 <- -log(input$yrsurv1) / input$syear
+    h2 <- -log(input$yrsurv2) / input$syear
+    beta <- 1 - input$power
+    
+    res <- twoSurvSampleSizeNI(input$accrual, input$follow, input$alloc, h1, h2, input$alpha, beta, input$margin)
+    
+    output$result_table <- renderDT({
+      datatable(res,
+                colnames = NULL,
+                options = list(
+                  dom = 't',
+                  ordering = FALSE,
+                  columnDefs = list(list(className = 'dt-left', targets = '_all'))
+                ),
+                rownames = FALSE
+      )
+    })
+  })
+}
 
-
-twoSurvSampleSizeNI(accuraltime, followtime, alloc, h1, h2, alpha, beta, margin)
-  
+shinyApp(ui, server)
