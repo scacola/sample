@@ -3,9 +3,12 @@ library(DT)
 # Lakatos sample size function for two-sample survival test
 
 
-rcode1 <- '
-
-twoSurvSampleSizeNI <- function(accrualTime, followTime, alloc, h1, h2, alpha, beta, margin) {
+rcode1 <- 'twoSurvSampleSizeNI <- function(syear, yrsurv1, yrsurv2, alloc, accrualTime, followTime, alpha, power, margin) {
+  
+  h1 <- -log(yrsurv1) / syear
+  h2 <- -log(yrsurv2) / syear
+  beta <- 1 - power
+  
   totalTime <- accrualTime + followTime
   hr1 <- h2 / h1
   hr0 <- margin
@@ -63,17 +66,22 @@ twoSurvSampleSizeNI <- function(accrualTime, followTime, alloc, h1, h2, alpha, b
     Total_expected_event_numbers = round(n * p1 * (1 + d1), 1) + round(n * p2 * (1 + d2), 1)
   )
   
-}
-'
+}'
 
 rcode2 <- '
-lakatosSampleSize <- function(
-    accrualTime, followTime, alloc,
-    h1, h2, alpha, power,
+lakatosSampleSize <- function(syear, yrsurv1, yrsurv2, alloc,
+    accrualTime, followTime, 
+    alpha, power,
     method = c("logrank", "gehan", "tarone-ware"),
     side = c("two.sided", "one.sided"),
     b = 24
 ) {
+  
+  h1 <- -log(yrsurv1) / syear
+  h2 <- -log(yrsurv2) / syear
+  beta <- 1 - power
+  
+  
   method <- match.arg(method)
   side <- match.arg(side)
   totalTime <- accrualTime + followTime
@@ -161,10 +169,16 @@ lakatosSampleSize <- function(
   }
   
   return(result)
-}'
+}
+'
 
 
-twoSurvSampleSizeNI <- function(accrualTime, followTime, alloc, h1, h2, alpha, beta, margin) {
+twoSurvSampleSizeNI <- function(syear, yrsurv1, yrsurv2, alloc, accrualTime, followTime,  alpha, power, margin) {
+  
+  h1 <- -log(yrsurv1) / syear
+  h2 <- -log(yrsurv2) / syear
+  beta <- 1 - power
+  
   totalTime <- accrualTime + followTime
   hr1 <- h2 / h1
   hr0 <- margin
@@ -224,13 +238,19 @@ twoSurvSampleSizeNI <- function(accrualTime, followTime, alloc, h1, h2, alpha, b
   
 }
 
-lakatosSampleSize <- function(
-    accrualTime, followTime, alloc,
-    h1, h2, alpha, power,
+lakatosSampleSize <- function(syear, yrsurv1, yrsurv2, alloc,
+    accrualTime, followTime,
+    alpha, power,
     method = c("logrank", "gehan", "tarone-ware"),
     side = c("two.sided", "one.sided"),
     b = 24
 ) {
+  
+  h1 <- -log(yrsurv1) / syear
+  h2 <- -log(yrsurv2) / syear
+  beta <- 1 - power
+  
+  
   method <- match.arg(method)
   side <- match.arg(side)
   totalTime <- accrualTime + followTime
@@ -388,22 +408,21 @@ ui <- fluidPage(
 
 server <- function(input, output) {
   observeEvent(input$calc, {
-    h1 <- -log(input$yrsurv1) / input$syear
-    h2 <- -log(input$yrsurv2) / input$syear
-    beta <- 1 - input$power
+    
     
     res_df <- NULL
     
     if (input$test_type == "ni") {
       res <- tryCatch({
         twoSurvSampleSizeNI(
+          syear = input$syear,
+          yrsurv1 = input$yrsurv1,
+          yrsurv2 = input$yrsurv2, 
           accrualTime = input$accrual,
           followTime = input$follow,
           alloc = input$alloc,
-          h1 = h1,
-          h2 = h2,
           alpha = input$alpha,
-          beta = beta,
+          power = input$power,
           margin = input$margin
         )
       }, error = function(e) NULL)
@@ -420,11 +439,12 @@ server <- function(input, output) {
       
     } else {
       res <- lakatosSampleSize(
+        syear = input$syear,
+        yrsurv1 = input$yrsurv1,
+        yrsurv2 = input$yrsurv2,
         accrualTime = input$accrual,
         followTime = input$follow,
         alloc = input$alloc,
-        h1 = h1,
-        h2 = h2,
         alpha = input$alpha,
         power = input$power,
         method = input$method,
@@ -443,6 +463,7 @@ server <- function(input, output) {
     output$result_table <- renderDT({
       datatable(
         res_df,
+        colnames = c("Metric", "N"),
         options = list(
           dom = 't',
           ordering = FALSE,
