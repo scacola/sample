@@ -172,6 +172,82 @@ lakatosSampleSize <- function(syear, yrsurv1, yrsurv2, alloc,
 }
 '
 
+rcode3 <- '
+oneSurvSampleSize <- function(
+    survTime, p1, p2,accrualTime, followTime, 
+     alpha, power, side = c("two.sided", "one.sided"), method = c("arcsin", "log-log", "logit", "log", "log-swog", "identity")
+){
+  h1 = -log(p1) / survTime
+  h2 = -log(p2) / survTime
+  
+  beta <- 1 - power
+  
+  
+  a <- accrualTime
+  f <- followTime
+  b <- a + f
+  s <- survTime
+  nk <- 5000
+  result <- numeric(2)
+  
+  if (side == "one.sided") {
+    za <- qnorm(1 - alpha)
+  } else {
+    za <- qnorm(1 - alpha / 2)
+  }
+  zb <- qnorm(1 - beta)
+  
+  if (s < f) {
+    avar1 <- exp(h1 * s) - 1
+    avar2 <- exp(h2 * s) - 1
+  } else {
+    w <- (s - f) / nk
+    t_seq <- seq(f + w, s - w, length.out = nk - 1)
+    avar1 <- exp(h1 * f) / (b - f) * 0.5 + sum(exp(h1 * t_seq) / (b - t_seq)) + exp(h1 * s) / (b - s) * 0.5
+    avar2 <- exp(h2 * f) / (b - f) * 0.5 + sum(exp(h2 * t_seq) / (b - t_seq)) + exp(h2 * s) / (b - s) * 0.5
+    
+    avar1 <- w * avar1 * h1 * a + exp(h1 * f) - 1
+    avar2 <- w * avar2 * h2 * a + exp(h2 * f) - 1
+  }
+  
+  method <- tolower(method)
+  if (method == "arcsin") {
+    ncp <- abs(asin(sqrt(p1)) - asin(sqrt(p2)))
+    avar2 <- avar2 * exp(-h2 * s) / (1 - exp(-h2 * s)) * 0.25
+    n <- ceiling(avar2 * ((za + zb) / ncp)^2)
+    power <- pnorm(-za + ncp * sqrt(n) / sqrt(avar2))
+  } else if (method == "log-log") {
+    ncp <- abs(log(-log(p1)) - log(-log(p2)))
+    avar2 <- avar2 / (h2^2 * s^2)
+    n <- ceiling(avar2 * ((za + zb) / ncp)^2)
+    power <- pnorm(-za + ncp * sqrt(n) / sqrt(avar2))
+  } else if (method == "logit") {
+    ncp <- abs(log(p1 / (1 - p1)) - log(p2 / (1 - p2)))
+    avar2 <- avar2 / (1 - exp(-h2 * s))^2
+    n <- ceiling(avar2 * ((za + zb) / ncp)^2)
+    power <- pnorm(-za + ncp * sqrt(n) / sqrt(avar2))
+  } else if (method == "log") {
+    ncp <- abs(log(p1) - log(p2))
+    n <- ceiling(avar2 * ((za + zb) / ncp)^2)
+    power <- pnorm(-za + ncp * sqrt(n) / sqrt(avar2))
+  } else if (method == "log-swog") {
+    ncp <- abs(log(p1) - log(p2))
+    n <- ceiling(((sqrt(avar2) * za + sqrt(avar1) * zb) / ncp)^2)
+    power <- pnorm(-za * sqrt(avar2) / sqrt(avar1) + ncp * sqrt(n) / sqrt(avar1))
+  } else {
+    # identity
+    ncp <- abs(p1 - p2)
+    avar2 <- avar2 * exp(-2 * h2 * s)
+    n <- ceiling(avar2 * ((za + zb) / ncp)^2)
+    power <- pnorm(-za + ncp * sqrt(n) / sqrt(avar2))
+  }
+  
+  result[1] <- n
+  result[2] <- power
+  names(result) <- c("SampleSize", "Power")
+  return(result)
+}'
+
 
 twoSurvSampleSizeNI <- function(syear, yrsurv1, yrsurv2, alloc, accrualTime, followTime,  alpha, power, margin) {
   
@@ -341,24 +417,94 @@ lakatosSampleSize <- function(syear, yrsurv1, yrsurv2, alloc,
 }
 
 
+oneSurvSampleSize <- function(
+    survTime, p1, p2,accrualTime, followTime, 
+    alpha, power, side = c("two.sided", "one.sided"), method = c("arcsin", "log-log", "logit", "log", "log-swog", "identity")
+){
+  h1 = -log(p1) / survTime
+  h2 = -log(p2) / survTime
+  
+  beta <- 1 - power
+  
+  
+  a <- accrualTime
+  f <- followTime
+  b <- a + f
+  s <- survTime
+  nk <- 5000
+  result <- numeric(2)
+  
+  if (side == "one.sided") {
+    za <- qnorm(1 - alpha)
+  } else {
+    za <- qnorm(1 - alpha / 2)
+  }
+  zb <- qnorm(1 - beta)
+  
+  if (s < f) {
+    avar1 <- exp(h1 * s) - 1
+    avar2 <- exp(h2 * s) - 1
+  } else {
+    w <- (s - f) / nk
+    t_seq <- seq(f + w, s - w, length.out = nk - 1)
+    avar1 <- exp(h1 * f) / (b - f) * 0.5 + sum(exp(h1 * t_seq) / (b - t_seq)) + exp(h1 * s) / (b - s) * 0.5
+    avar2 <- exp(h2 * f) / (b - f) * 0.5 + sum(exp(h2 * t_seq) / (b - t_seq)) + exp(h2 * s) / (b - s) * 0.5
+    
+    avar1 <- w * avar1 * h1 * a + exp(h1 * f) - 1
+    avar2 <- w * avar2 * h2 * a + exp(h2 * f) - 1
+  }
+  
+  method <- tolower(method)
+  if (method == "arcsin") {
+    ncp <- abs(asin(sqrt(p1)) - asin(sqrt(p2)))
+    avar2 <- avar2 * exp(-h2 * s) / (1 - exp(-h2 * s)) * 0.25
+    n <- ceiling(avar2 * ((za + zb) / ncp)^2)
+    power <- pnorm(-za + ncp * sqrt(n) / sqrt(avar2))
+  } else if (method == "log-log") {
+    ncp <- abs(log(-log(p1)) - log(-log(p2)))
+    avar2 <- avar2 / (h2^2 * s^2)
+    n <- ceiling(avar2 * ((za + zb) / ncp)^2)
+    power <- pnorm(-za + ncp * sqrt(n) / sqrt(avar2))
+  } else if (method == "logit") {
+    ncp <- abs(log(p1 / (1 - p1)) - log(p2 / (1 - p2)))
+    avar2 <- avar2 / (1 - exp(-h2 * s))^2
+    n <- ceiling(avar2 * ((za + zb) / ncp)^2)
+    power <- pnorm(-za + ncp * sqrt(n) / sqrt(avar2))
+  } else if (method == "log") {
+    ncp <- abs(log(p1) - log(p2))
+    n <- ceiling(avar2 * ((za + zb) / ncp)^2)
+    power <- pnorm(-za + ncp * sqrt(n) / sqrt(avar2))
+  } else if (method == "log-swog") {
+    ncp <- abs(log(p1) - log(p2))
+    n <- ceiling(((sqrt(avar2) * za + sqrt(avar1) * zb) / ncp)^2)
+    power <- pnorm(-za * sqrt(avar2) / sqrt(avar1) + ncp * sqrt(n) / sqrt(avar1))
+  } else {
+    # identity
+    ncp <- abs(p1 - p2)
+    avar2 <- avar2 * exp(-2 * h2 * s)
+    n <- ceiling(avar2 * ((za + zb) / ncp)^2)
+    power <- pnorm(-za + ncp * sqrt(n) / sqrt(avar2))
+  }
+  
+  result[1] <- n
+  result[2] <- power
+  names(result) <- c("SampleSize", "Power")
+  return(result)
+}
+
+
+
 ui <- fluidPage(
   includeCSS("www/style.css"),  
   titlePanel("Two-sample Survival Sample Size Calculator"),
   sidebarLayout(
     sidebarPanel(
       radioButtons("test_type", "Test Type:",
-                   choices = c("Non-Inferiority" = "ni", "Superiority" = "sup"),
+                   choices = c("Non-Inferiority" = "ni", "Superiority" = "sup", "One-sample" = "one"),
                    selected = "ni", inline = T),
       numericInput("syear", "Survival Time :", value = 12),
-      fluidRow(
-        column(6,
-               numericInput("yrsurv1", "Survival Probability (Standard Group):", value = 0.305)
-        ),
-        column(6,
-               numericInput("yrsurv2", "Survival Probability (Test Group):", value = 0.435)
-        )
-      ),
-      numericInput("alloc", "Allocation Ratio :", value = 1),
+      uiOutput("surv_ui"),
+      uiOutput("alloc_ui"),
       fluidRow(
         column(6,
                numericInput("accrual", "Accrual Time :", value = 24)
@@ -382,26 +528,39 @@ ui <- fluidPage(
         condition = "input.test_type=='ni'",
         selectInput("side", "Hypothesis:", choices = "one.sided")
       ),
+      conditionalPanel(
+        condition = "input.test_type=='one'",
+        selectInput("side", "Hypothesis:", choices = c("two.sided", "one.sided")),
+        selectInput("trans", "Transformation:", choices = c("arcsin", "log-log", "logit", "log", "log-swog", "identity"))
+      ),
       actionButton("calc", "Calculate")
     ),
     mainPanel(
       tabsetPanel(
         tabPanel("analysis",
                  DTOutput("result_table"),
-                 tags$hr(),
-                 tags$div("Reference: Jung SH, Chow SC. On sample size calculation for comparing survival curves under general hypothesis testing. Journal of Biopharmaceutical Statistics 2012; 22(3):485–495."),
-                 tags$hr(),
-                 tags$div("Reference: Lakatos E. Sample sizes based on the log-rank statistic in complex clinical trials. Biometrics 1988;44:229–241."),
-                 tags$hr(),
-                 tags$div("Reference: Lakatos E, Lan KK. A comparison of sample size methods for the logrank statistic. Statistics in Medicine 1992;11(2):179–191.")),
+              tags$h3("Reference"),
+                 tags$div("Jung SH, Chow SC. On sample size calculation for comparing survival curves under general hypothesis testing. Journal of Biopharmaceutical Statistics 2012; 22(3):485–495."),
+   
+                 tags$div(" Lakatos E. Sample sizes based on the log-rank statistic in complex clinical trials. Biometrics 1988; 44:229–241."),
+                
+                 tags$div(" Lakatos E, Lan KK. A comparison of sample size methods for the logrank statistic. Statistics in Medicine 1992; 11(2):179–191."),
+                
+                 tags$div(" Fleming TR, Harrington DP. Counting Processes and Survival Analysis. New York: Wiley, 1991, 236–237, Example 6.3.1."),
+               
+                 tags$div(" Andersen PK, Borgan Ø, Gill RD, Keiding N. Statistical Models Based on Counting Processes. New York: Springer-Verlag, 1993, 176–287, Section IV.1–3."),
+                 
+                 tags$div(" Bie O, Borgan Ø, Liestøl K. Confidence intervals and confidence bands for the cumulative hazard rate function and their small sample properties. Scandinavian Journal of Statistics 1987; 14(3): 221–233."),
+                 
+                 tags$div(" Borgan Ø, Liestøl K. A note on confidence intervals and bands for the survival function based on transformations. Scandinavian Journal of Statistics 1990; 17(1): 35–41."),
+                 
+                 tags$div(" Nagashima K, Noma H, Sato Y, Gosho M. Sample size calculations for single-arm survival studies using transformations of the Kaplan–Meier estimator. Pharmaceutical Statistics 2020. DOI: 10.1002/pst.2090. [arXiv:2012.03355].")
+        ),
         tabPanel("R code",
                  uiOutput("codeBlock")
-                 
-                 
+        )
       )
-    
       
-    )
   )
 )
 )
@@ -437,7 +596,7 @@ server <- function(input, output) {
         res_df <- data.frame(Metric = "Error", Value = "Invalid or missing output from NI function")
       }
       
-    } else {
+    } else if(input$test_type == "sup") {
       res <- lakatosSampleSize(
         syear = input$syear,
         yrsurv1 = input$yrsurv1,
@@ -458,6 +617,27 @@ server <- function(input, output) {
       } else {
         res_df <- data.frame(Metric = "Error", Value = res$error)
       }
+    }else if(input$test_type =="one"){
+      res <- tryCatch({oneSurvSampleSize(
+        survTime = input$syear,
+        p1 = input$p1,
+        p2 = input$p2,
+        accrualTime = input$accrual,
+        followTime = input$follow,
+        alpha = input$alpha,
+        power = input$power,
+        side = input$side,
+        method = input$trans
+      )}, error = function(e) NULL)
+      
+      if (!is.null(res)) {
+        res_df <- data.frame(
+          Metric = names(res),
+          Value = unname(unlist(res))
+        )
+      } else {
+        res_df <- data.frame(Metric = "Error", Value = "Invalid or missing output from NI function")
+      }
     }
     
     output$result_table <- renderDT({
@@ -477,16 +657,46 @@ server <- function(input, output) {
   output$codeBlock <- renderUI({
     if (input$test_type == "ni") {
       tags$pre(tags$code(rcode1))
-    } else {
+    } else if(input$test_type == "sup"){
       tags$pre(tags$code(rcode2))
+    }else{
+      tags$pre(tags$code(rcode3))
     }
   })
-  
+    
   output$alpha_ui <- renderUI({
     if (input$test_type == "ni") {
       numericInput("alpha", "Significance Level (alpha):", value = 0.025)
     } else {
       numericInput("alpha", "Significance Level (alpha):", value = 0.05)
+    }
+  })
+  
+  output$alloc_ui <- renderUI({
+    if (input$test_type %in% c("ni","sup")){
+      numericInput("alloc", "Allocation Ratio :", value = 1)
+    }
+  })
+  
+  output$surv_ui <- renderUI({
+    if (input$test_type %in% c("ni", "sup")){
+      fluidRow(
+        column(6,
+               numericInput("yrsurv1", "Survival Probability (Standard Group):", value = 0.305)
+        ),
+        column(6,
+               numericInput("yrsurv2", "Survival Probability (Test Group):", value = 0.435)
+        )
+      )
+    }else{
+      fluidRow(
+        column(6,
+               numericInput("p1", "Null survival probability:", value = 0.305)
+        ),
+        column(6,
+               numericInput("p2", "Alternative survival probability", value = 0.435)
+        )
+      )
     }
   })
   
