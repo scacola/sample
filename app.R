@@ -57,6 +57,25 @@ twoSurvSampleSizeNI <- function(accrualTime, followTime, alloc, h1, h2, alpha, b
     standard_group_n = sample_std,
     test_group_n = sample_test,
     expected_events_std = round(n * p1 * (1 + d1), 1),
-    expected_events_test = round(n * p2 * (1 + d2), 1)
+    expected_events_test = round(n * p2 * (1 + d2), 1),
+    total_expected_events = round(n * p1 * (1 + d1), 1)+round(n * p2 * (1 + d2), 1)
   )
 }
+
+syear <-16
+yrsurv1 <- 0.5
+yrsurv2 <- 0.3
+alloc <- 2
+accuraltime <- 24
+followtime <-24
+margin <- 1.3
+alpha <- 0.025
+power <- 0.6
+
+beta <- 1-power
+h1 <- -log(yrsurv1) / syear
+h2 <- -log(yrsurv2) / syear
+
+
+twoSurvSampleSizeNI(accuraltime, followtime, alloc, h1, h2, alpha, beta, margin)
+  
