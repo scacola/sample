@@ -2,6 +2,7 @@ library(shiny)
 library(DT)
 # Lakatos sample size function for two-sample survival test
 
+
 twoSurvSampleSizeNI <- function(accrualTime, followTime, alloc, h1, h2, alpha, beta, margin) {
   totalTime <- accrualTime + followTime
   hr1 <- h2 / h1
@@ -82,7 +83,8 @@ lakatosSampleSize <- function(
   numer <- denom <- phi <- di <- wi <- e <- n <- 0
   eEvt1 <- eEvt2 <- 0
   
-  for (i in seq_along(ti)) {
+  #i in seq_along(ti)
+  for (i in 1:m) {
     if (i == 1) {
       n1[i] <- allocRatio
       n2[i] <- 1 - allocRatio
@@ -98,10 +100,18 @@ lakatosSampleSize <- function(
     
     phi <- n2[i] / n1[i]
     di <- (n1[i] * h1 + n2[i] * h2) / b
+  
+    # if(i<=10 | i>=1045) print(c(i, n1[i]+n2[i]))
+    
+    # if(1){
+    #   print(i)
+    #   print(n1[i]+n2[i])
+    # }
+    
     wi <- switch(method,
                  logrank = 1,
                  gehan = n1[i] + n2[i],
-                 `tarone-ware` = sqrt(n1[i] + n2[i]))
+                 `tarone-ware` = sqrt(max( n1[i] + n2[i], 0)))
     
     numer <- numer + di * wi * ((hr * phi) / (1 + hr * phi) - phi / (1 + phi))
     denom <- denom + di * wi^2 * (phi / (1 + phi)^2)
@@ -154,7 +164,7 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       radioButtons("test_type", "Test Type:",
-                   choices = c("Non-Inferiority" = "ni", "Superiority / Difference" = "sup"),
+                   choices = c("Non-Inferiority" = "ni", "Inferiority" = "sup"),
                    selected = "ni"),
       numericInput("syear", "Survival Time (years):", value = 12),
       numericInput("yrsurv1", "Survival Probability (Standard Group):", value = 0.5),
@@ -176,8 +186,14 @@ ui <- fluidPage(
       actionButton("calc", "Calculate")
     ),
     mainPanel(
-      DTOutput("result_table")
-    )
+      DTOutput("result_table"),
+      tags$hr(),
+      tags$div("Reference: Jung SH, Chow SC. On sample size calculation for comparing survival curves under general hypothesis testing. Journal of Biopharmaceutical Statistics 2012; 22(3):485–495."),
+      tags$hr(),
+      tags$div("Reference: Lakatos E. Sample sizes based on the log-rank statistic in complex clinical trials. Biometrics 1988;44:229–241."),
+      tags$hr(),
+      tags$div("Reference: Lakatos E, Lan KK. A comparison of sample size methods for the logrank statistic. Statistics in Medicine 1992;11(2):179–191.")
+          )
   )
 )
 
