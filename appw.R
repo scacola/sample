@@ -1,5 +1,66 @@
 library(shiny)
+library(DT)
 # Lakatos sample size function for two-sample survival test
+
+twoSurvSampleSizeNI <- function(accrualTime, followTime, alloc, h1, h2, alpha, beta, margin) {
+  totalTime <- accrualTime + followTime
+  hr1 <- h2 / h1
+  hr0 <- margin
+  
+  p2 <- alloc / (1 + alloc)
+  p1 <- 1 - p2
+  
+  za <- qnorm(1 - alpha)
+  zb <- qnorm(1 - beta)
+  
+  nk <- 5000
+  w <- totalTime / nk
+  
+  i0 <- (p1 * h1 + p2 * h2) / (p1 + hr0 * p2)^2 * 0.5 * w
+  i1 <- (p1 * h1 + p2 * h2) / (p1 + hr1 * p2)^2 * 0.5 * w
+  om <- (p1 * h1 + p2 * h2) / ((p1 + hr0 * p2) * (p1 + hr1 * p2)) * 0.5 * w
+  d1 <- 0
+  d2 <- 0
+  
+  for (k in 1:(nk - 1)) {
+    t <- k * w
+    s1 <- exp(-h1 * t)
+    s2 <- s1^hr1
+    f1 <- h1 * s1
+    f2 <- hr1 * h1 * s2
+    
+    if (t <= followTime) {
+      g <- 1.0
+      dg <- 0.0
+    } else {
+      g <- -t / accrualTime + totalTime / accrualTime
+      dg <- -1.0 / accrualTime
+    }
+    
+    i0 <- i0 + g * s1 * s2 * (p1 * f1 + p2 * f2) / (p1 * s1 + hr0 * p2 * s2)^2 * w
+    i1 <- i1 + g * s1 * s2 * (p1 * f1 + p2 * f2) / (p1 * s1 + hr1 * p2 * s2)^2 * w
+    om <- om + g * s1 * s2 * (p1 * f1 + p2 * f2) / ((p1 * s1 + hr0 * p2 * s2) * (p1 * s1 + hr1 * p2 * s2)) * w
+    d1 <- d1 + dg * s1 * w
+    d2 <- d2 + dg * s2 * w
+  }
+  
+  i0 <- hr0 * p1 * p2 * i0
+  i1 <- hr1 * p1 * p2 * i1
+  om <- (hr0 - hr1) * p1 * p2 * om
+  
+  n <- ((sqrt(i0) * za + sqrt(i1) * zb) / om)^2
+  sample_std <- ceiling(n * p1)
+  sample_test <- ceiling(sample_std * alloc)
+  list(
+    total_n = sample_std + sample_test,
+    standard_group_n = sample_std,
+    test_group_n = sample_test,
+    expected_events_std = round(n * p1 * (1 + d1), 1),
+    expected_events_test = round(n * p2 * (1 + d2), 1),
+    total_expected_events = round(n * p1 * (1 + d1), 1) + round(n * p2 * (1 + d2), 1)
+  )
+  
+}
 lakatosSampleSize <- function(
     accrualTime, followTime, alloc,
     h1, h2, alpha, power,
@@ -87,55 +148,118 @@ lakatosSampleSize <- function(
   return(result)
 }
 
-# Example usage:
-# h1 <- -log(0.305) / 12
-# h2 <- -log(0.435) / 12
-# lakatosSampleSize(24, 24, alloc = 1, h1, h2, alpha = 0.05, power = 0.8, method = "logrank", side = "two.sided")
 
-# UI
 ui <- fluidPage(
-  titlePanel("Lakatos Sample Size Calculator"),
+  titlePanel("Two-sample Survival Sample Size Calculator"),
   sidebarLayout(
     sidebarPanel(
+      radioButtons("test_type", "Test Type:",
+                   choices = c("Non-Inferiority" = "ni", "Superiority / Difference" = "sup"),
+                   selected = "ni"),
       numericInput("syear", "Survival Time (years):", value = 12),
-      numericInput("yrsurv1", "Survival Probability (Standard Group):", value = 0.305),
-      numericInput("yrsurv2", "Survival Probability (Test Group):", value = 0.435),
+      numericInput("yrsurv1", "Survival Probability (Standard Group):", value = 0.5),
+      numericInput("yrsurv2", "Survival Probability (Test Group):", value = 0.3),
       numericInput("alloc", "Allocation Ratio (Test / Standard):", value = 1),
       numericInput("accrual", "Accrual Time (months):", value = 24),
       numericInput("follow", "Follow-up Time (months):", value = 24),
-      numericInput("alpha", "Significance Level (alpha):", value = 0.05),
+      numericInput("alpha", "Significance Level (alpha):", value = 0.025),
       numericInput("power", "Power (1 - Beta):", value = 0.8),
-      selectInput("method", "Test Method:", choices = c("logrank", "gehan", "tarone-ware")),
-      selectInput("side", "Test Type:", choices = c("two.sided", "one.sided")),
+      conditionalPanel(
+        condition = "input.test_type == 'ni'",
+        numericInput("margin", "Non-inferiority Margin (HR):", value = 1.3)
+      ),
+      conditionalPanel(
+        condition = "input.test_type == 'sup'",
+        selectInput("method", "Test Method:", choices = c("logrank", "gehan", "tarone-ware")),
+        selectInput("side", "Test Direction:", choices = c("two.sided", "one.sided"))
+      ),
       actionButton("calc", "Calculate")
     ),
     mainPanel(
-      verbatimTextOutput("result")
+      DTOutput("result_table")
     )
   )
 )
 
-# Server
 server <- function(input, output) {
-  
   observeEvent(input$calc, {
     h1 <- -log(input$yrsurv1) / input$syear
     h2 <- -log(input$yrsurv2) / input$syear
+    beta <- 1 - input$power
     
-    res <- lakatosSampleSize(
-      accrualTime = input$accrual,
-      followTime = input$follow,
-      alloc = input$alloc,
-      h1 = h1,
-      h2 = h2,
-      alpha = input$alpha,
-      power = input$power,
-      method = input$method,
-      side = input$side
-    )
+    res_df <- NULL
     
-    output$result <- renderPrint({ res })
+    if (input$test_type == "ni") {
+      res <- tryCatch({
+        twoSurvSampleSizeNI(
+          accrualTime = input$accrual,
+          followTime = input$follow,
+          alloc = input$alloc,
+          h1 = h1,
+          h2 = h2,
+          alpha = input$alpha,
+          beta = beta,
+          margin = input$margin
+        )
+      }, error = function(e) NULL)
+      
+      if (!is.null(res) && all(c("total_n", "standard_group_n", "test_group_n", "expected_events_std", "expected_events_test", "total_expected_events") %in% names(res))) {
+        res_df <- data.frame(
+          Metric = c(
+            "Total Sample Size",
+            "Standard Group Sample Size",
+            "Test Group Sample Size",
+            "Expected Events (Standard Group)",
+            "Expected Events (Test Group)",
+            "Total Expected Events"
+          ),
+          Value = c(
+            res$total_n,
+            res$standard_group_n,
+            res$test_group_n,
+            res$expected_events_std,
+            res$expected_events_test,
+            res$total_expected_events
+          )
+        )
+      } else {
+        res_df <- data.frame(Metric = "Error", Value = "Invalid or missing output from NI function")
+      }
+      
+    } else {
+      res <- lakatosSampleSize(
+        accrualTime = input$accrual,
+        followTime = input$follow,
+        alloc = input$alloc,
+        h1 = h1,
+        h2 = h2,
+        alpha = input$alpha,
+        power = input$power,
+        method = input$method,
+        side = input$side
+      )
+      if (is.null(res$error)) {
+        res_df <- data.frame(
+          Metric = names(res),
+          Value = unname(unlist(res))
+        )
+      } else {
+        res_df <- data.frame(Metric = "Error", Value = res$error)
+      }
+    }
+    
+    output$result_table <- renderDT({
+      datatable(
+        res_df,
+        options = list(
+          dom = 't',
+          ordering = FALSE,
+          columnDefs = list(list(className = 'dt-center', targets = '_all'))
+        ),
+        rownames = FALSE
+      )
+    })
   })
 }
 
-shinyApp(ui = ui, server = server)
+shinyApp(ui, server)
