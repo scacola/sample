@@ -322,6 +322,7 @@ lakatosSampleSize <- function(
 
 
 ui <- fluidPage(
+  includeCSS("www/style.css"),  
   titlePanel("Two-sample Survival Sample Size Calculator"),
   sidebarLayout(
     sidebarPanel(
