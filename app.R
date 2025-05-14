@@ -63,14 +63,14 @@ rcode1 <- 'twoSurvSampleSizeNI <- function(syear, yrsurv1, yrsurv2, alloc, accru
     Total_sample_size = sample_std + sample_test,
     Expected_event_numbers_of_standard_group = round(n * p1 * (1 + d1), 1),
     Expected_event_numbers_of_test_group = round(n * p2 * (1 + d2), 1),
-    Total_expected_event_numbers = round(n * p1 * (1 + d1), 1) + round(n * p2 * (1 + d2), 1)
+    Total_expected_event_numbers = round(n * p1 * (1 + d1) + n * p2 * (1 + d2), 1)
   )
   
 }'
 
 rcode2 <- '
 lakatosSampleSize <- function(syear, yrsurv1, yrsurv2, alloc,
-    accrualTime, followTime, 
+    accrualTime, followTime,
     alpha, power,
     method = c("logrank", "gehan", "tarone-ware"),
     side = c("two.sided", "one.sided"),
@@ -160,7 +160,7 @@ lakatosSampleSize <- function(syear, yrsurv1, yrsurv2, alloc,
       Expected_event_numbers_of_standard_group = round(n * eEvt1, 1),
       Expected_event_numbers_of_test_group = round(n * eEvt2, 1),
       Total_expected_event_numbers = round(n * (eEvt1 + eEvt2), 1),
-      Actual_power = round(pow, 4)
+      Actual_power = round(pow, 3)
     )
   } else {
     result <- list(
@@ -169,13 +169,12 @@ lakatosSampleSize <- function(syear, yrsurv1, yrsurv2, alloc,
   }
   
   return(result)
-}
-'
+}'
 
 rcode3 <- '
 oneSurvSampleSize <- function(
     survTime, p1, p2,accrualTime, followTime, 
-     alpha, power, side = c("two.sided", "one.sided"), method = c("arcsin", "log-log", "logit", "log", "log-swog", "identity")
+    alpha, power, side = c("two.sided", "one.sided"), method = c("arcsin", "log-log", "logit", "log", "log-swog", "identity")
 ){
   h1 = -log(p1) / survTime
   h2 = -log(p2) / survTime
@@ -243,7 +242,7 @@ oneSurvSampleSize <- function(
   }
   
   result[1] <- n
-  result[2] <- power
+  result[2] <- round(power,3)
   names(result) <- c("SampleSize", "Power")
   return(result)
 }'
@@ -309,7 +308,7 @@ twoSurvSampleSizeNI <- function(syear, yrsurv1, yrsurv2, alloc, accrualTime, fol
     Total_sample_size = sample_std + sample_test,
     Expected_event_numbers_of_standard_group = round(n * p1 * (1 + d1), 1),
     Expected_event_numbers_of_test_group = round(n * p2 * (1 + d2), 1),
-    Total_expected_event_numbers = round(n * p1 * (1 + d1), 1) + round(n * p2 * (1 + d2), 1)
+    Total_expected_event_numbers = round(n * p1 * (1 + d1) + n * p2 * (1 + d2), 1)
   )
   
 }
@@ -405,7 +404,7 @@ lakatosSampleSize <- function(syear, yrsurv1, yrsurv2, alloc,
       Expected_event_numbers_of_standard_group = round(n * eEvt1, 1),
       Expected_event_numbers_of_test_group = round(n * eEvt2, 1),
       Total_expected_event_numbers = round(n * (eEvt1 + eEvt2), 1),
-      Actual_power = round(pow, 4)
+      Actual_power = round(pow, 3)
     )
   } else {
     result <- list(
@@ -487,7 +486,7 @@ oneSurvSampleSize <- function(
   }
   
   result[1] <- n
-  result[2] <- power
+  result[2] <- round(power,3)
   names(result) <- c("SampleSize", "Power")
   return(result)
 }
@@ -496,7 +495,7 @@ oneSurvSampleSize <- function(
 
 ui <- fluidPage(
   includeCSS("www/style.css"),  
-  titlePanel("Two-sample Survival Sample Size Calculator"),
+  titlePanel("Sample Size Calculator"),
   sidebarLayout(
     sidebarPanel(
       radioButtons("test_type", "Test Type:",
